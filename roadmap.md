@@ -1,0 +1,7 @@
+- [x] Connect Cloud authentication, catalog, orders, and private storage.
+- [x] Build Arabic storefront, catalog, product detail, favorites, cart, and checkout.
+- [x] Build administrator login, products, orders, statistics, and admin invitations.
+- [x] Verify public storefront, category filters, payment selection, and login/reset screens on desktop and mobile.
+- [ ] Verify authenticated administration and complete a real order once the owner creates and confirms an admin account and adds a product.
+- [x] Require transfer receipt for electronic payments, show centered add-to-cart feedback, clarify admin order statuses, and show signed-in customers products first with subtle motion.
+- [x] AI customer assistant (catalog search by category, real add-to-cart, quick fixed replies, saved chat) + phone menu
