@@ -33,7 +33,7 @@ function Account() {
     await supabase.auth.signOut();
     navigate({ to: '/auth', replace: true });
   }
-  const max = LOYALTY_GIFTS[LOYALTY_GIFTS.length - 1].amount;
+  const max = LOYALTY_GIFTS[LOYALTY_GIFTS.length - 1]?.amount ?? 0;
   const spend = loyalty?.monthSpend ?? 0;
   return <StoreShell><main className="mx-auto min-h-[55vh] max-w-4xl px-4 py-10 sm:px-6">
     <PageTitle eyebrow="حسابك" title="حسابي" />
