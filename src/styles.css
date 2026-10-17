@@ -19,6 +19,10 @@
  */
 
 @theme inline {
+  --font-sans: "Cairo", sans-serif;
+  --color-brand-gold: var(--brand-gold);
+  --color-sale: var(--sale);
+  --color-sale-foreground: var(--sale-foreground);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -62,26 +66,29 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
+  --radius: 0.75rem;
+  --brand-gold: oklch(0.62 0.15 350);
+  --sale: oklch(0.86 0.16 90);
+  --sale-foreground: oklch(0.24 0.06 340);
+  --background: oklch(0.985 0.008 20);
+  --foreground: oklch(0.24 0.06 340);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
+  --primary: oklch(0.36 0.13 345);
+  --primary-foreground: oklch(0.99 0.004 100);
+  --secondary: oklch(0.95 0.025 10);
+  --secondary-foreground: oklch(0.36 0.13 345);
+  --muted: oklch(0.95 0.02 10);
+  --muted-foreground: oklch(0.5 0.04 340);
+  --accent: oklch(0.93 0.04 355);
+  --accent-foreground: oklch(0.36 0.13 345);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
+  --border: oklch(0.9 0.025 10);
+  --input: oklch(0.9 0.025 10);
+  --ring: oklch(0.62 0.15 350);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -98,6 +105,9 @@
 }
 
 .dark {
+  --sale: oklch(0.82 0.15 90);
+  --sale-foreground: oklch(0.2 0.05 340);
+  --brand-gold: oklch(0.76 0.12 80);
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);
@@ -132,6 +142,16 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+.field { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); padding: 0.7rem 0.85rem; outline: none; }
+.field:focus { border-color: var(--brand-gold); box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand-gold) 18%, transparent); }
+
+@keyframes prestige-reveal { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes prestige-confirm { from { opacity: 0; transform: scale(0.88); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: no-preference) {
+  .store-reveal { animation: prestige-reveal 0.45s ease-out both; }
+  .cart-confirmation { animation: prestige-confirm 0.25s ease-out both; }
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -142,3 +162,18 @@
     color: var(--color-foreground);
   }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  .chat-pop { animation: chat-pop 0.28s cubic-bezier(.2,.9,.3,1.2) both; }
+  .chat-msg { animation: chat-msg 0.3s ease-out both; }
+  .chat-dot { animation: chat-dot 1s ease-in-out infinite; }
+  .chat-launcher { animation: chat-float 3s ease-in-out infinite; }
+}
+@keyframes chat-pop { from { opacity: 0; transform: translateY(16px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes chat-msg { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes chat-dot { 0%,100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-4px); } }
+@keyframes chat-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.chat-md p + p, .chat-md ul, .chat-md ol { margin-top: .5rem; }
+.chat-md ul { list-style: disc; padding-inline-start: 1.25rem; }
+.chat-md ol { list-style: decimal; padding-inline-start: 1.25rem; }
+.chat-md strong { color: var(--color-primary); }

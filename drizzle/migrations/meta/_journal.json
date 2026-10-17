@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791015332787,
+      "tag": "0000_prestige_store_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791015806593,
+      "tag": "0001_prevent_repeat_stock_deduction",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792254807087,
+      "tag": "0002_delivery_zones_loyalty_location",
+      "breakpoints": true
+    }
+  ]
+}
