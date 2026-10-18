@@ -59,11 +59,11 @@ function Checkout() {
       let encoded: { base64: string; type: 'image/jpeg'|'image/png'|'image/webp' } | undefined;
       if (proof) { const bytes = new Uint8Array(await proof.arrayBuffer()); let binary = ''; for (const byte of bytes) binary += String.fromCharCode(byte); encoded = { base64: btoa(binary), type: proof.type as 'image/jpeg'|'image/png'|'image/webp' }; }
       const response = await orderFn({ data: { ...result.data, paymentMethod, zoneId: zone.id, location, items: lines.map(x => ({ productId: x.line.id, quantity: x.line.quantity })), proof: encoded } });
-      setSuccess(response.id); clearCart();
+      setSuccess(response.trackingCode); clearCart();
     } catch (err) { setError(err instanceof Error ? err.message : 'تعذر إرسال الطلب، حاول مرة أخرى'); } finally { setBusy(false); }
   }
 
-  if (success) return <StoreShell><main className="mx-auto max-w-lg px-6 py-20 text-center"><CheckCircle2 className="mx-auto size-16 text-brand-gold" /><h1 className="mt-6 text-3xl font-bold">تم استلام طلبك بنجاح</h1><p className="mt-4 text-muted-foreground">رقم الطلب: <span dir="ltr">{success.slice(0,8).toUpperCase()}</span></p><p className="mt-2 text-sm text-muted-foreground">فريق برستيج زون هيتواصل معاك على تليفونك لتأكيد الطلب.</p><Button asChild className="mt-8"><Link to="/">العودة للرئيسية</Link></Button></main></StoreShell>;
+  if (success) return <StoreShell><main className="mx-auto max-w-lg px-6 py-20 text-center"><CheckCircle2 className="mx-auto size-16 text-brand-gold" /><h1 className="mt-6 text-3xl font-bold">تم استلام طلبك بنجاح</h1><p className="mt-4 text-muted-foreground">رقم التتبع: <span dir="ltr" className="font-bold text-foreground">{success}</span></p><p className="mt-2 text-sm text-muted-foreground">احتفظ برقم التتبع لمتابعة حالة طلبك. فريق برستيج زون هيتواصل معاك لتأكيد الطلب.</p><div className="mt-8 flex justify-center gap-3"><Button asChild><Link to="/track" search={{ code: success }}>تتبع طلبك</Link></Button><Button asChild variant="outline"><Link to="/">العودة للرئيسية</Link></Button></div></main></StoreShell>;
 
   return <StoreShell><main className="mx-auto min-h-[55vh] max-w-7xl px-4 py-10 sm:px-6">
     <PageTitle eyebrow="الخطوة الأخيرة" title="إتمام الطلب" />
