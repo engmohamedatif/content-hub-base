@@ -25,14 +25,15 @@ export const Route = createFileRoute('/api/public/telegram/webhook')({
           return Response.json({ ok: true });
         }
         const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-        const patch: Record<string, unknown> = { tracking_stage: cmd.stage, tracking_updated_at: new Date().toISOString() };
+        const now = new Date().toISOString();
+        const patch: { tracking_stage: number; tracking_updated_at: string; status?: string } = { tracking_stage: cmd.stage, tracking_updated_at: now };
         const { data: current } = await supabaseAdmin.from('orders').select('id, status').eq('tracking_code', cmd.code).maybeSingle();
         if (!current) { await reply(`❌ لا يوجد طلب برقم التتبع ${cmd.code}`); return Response.json({ ok: true }); }
         if (cmd.stage >= 1 && current.status === 'new') patch.status = 'confirmed';
         if (cmd.stage === 4 && current.status !== 'completed') patch.status = 'completed';
         const { error } = await supabaseAdmin.from('orders').update(patch).eq('id', current.id);
         if (error) {
-          const { error: e2 } = await supabaseAdmin.from('orders').update({ tracking_stage: cmd.stage, tracking_updated_at: patch.tracking_updated_at as string }).eq('id', current.id);
+          const { error: e2 } = await supabaseAdmin.from('orders').update({ tracking_stage: cmd.stage, tracking_updated_at: now }).eq('id', current.id);
           await reply(e2 ? `❌ تعذر التحديث: ${e2.message}` : `⚠️ تم تحديث التتبع لـ "${TRACKING_STAGES[cmd.stage]}" لكن تعذر إكمال الطلب (${error.message.includes('Insufficient') ? 'المخزون غير كافٍ' : error.message})`);
           return Response.json({ ok: true });
         }
