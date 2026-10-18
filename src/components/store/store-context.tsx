@@ -1,3 +1,4 @@
+import type React from 'react';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Check, ShoppingBag } from 'lucide-react';
@@ -7,7 +8,9 @@ import { supabase } from '@/integrations/supabase/client';
 type Product = Awaited<ReturnType<typeof getCatalog>>[number];
 type CartLine = { id: string; quantity: number };
 type StoreContextValue = { products: Product[]; loading: boolean; cart: CartLine[]; favorites: string[]; addToCart: (id: string, quantity?: number) => void; setQuantity: (id: string, quantity: number) => void; toggleFavorite: (id: string) => void; clearCart: () => void; session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']; authReady: boolean };
-const StoreContext = createContext<StoreContextValue | null>(null);
+// Keep one context instance across hot reloads so provider and consumers never diverge.
+const g = globalThis as { __prestigeStoreContext?: React.Context<StoreContextValue | null> };
+const StoreContext = g.__prestigeStoreContext ??= createContext<StoreContextValue | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { data: products = [], isPending: loading } = useQuery({ queryKey: ['catalog'], queryFn: () => getCatalog(), staleTime: 60000 });
   const [cart, setCart] = useState<CartLine[]>([]);
