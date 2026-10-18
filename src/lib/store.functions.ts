@@ -88,7 +88,9 @@ export const createOrder = createServerFn({ method: 'POST' }).inputValidator((in
   const deliveryFee = Number(zone.fee);
   const total = orderTotal(subtotal, loyaltyDiscount, deliveryFee);
   const locationUrl = data.location ? `https://www.google.com/maps?q=${data.location.lat.toFixed(6)},${data.location.lng.toFixed(6)}` : null;
-  const { data: order, error } = await supabaseAdmin.from('orders').insert({ user_id: userId, customer_name: data.name, phone: data.phone, address: data.address, notes: data.notes, payment_method: data.paymentMethod, payment_proof_path: proofPath, total, subtotal, loyalty_discount: loyaltyDiscount, delivery_fee: deliveryFee, zone_name: zone.name, location_url: locationUrl }).select('id').single();
+  const orderId = crypto.randomUUID();
+  const trackingCode = orderId.replace(/-/g, '').slice(0, 8).toUpperCase();
+  const { data: order, error } = await supabaseAdmin.from('orders').insert({ id: orderId, tracking_code: trackingCode, user_id: userId, customer_name: data.name, phone: data.phone, address: data.address, notes: data.notes, payment_method: data.paymentMethod, payment_proof_path: proofPath, total, subtotal, loyalty_discount: loyaltyDiscount, delivery_fee: deliveryFee, zone_name: zone.name, location_url: locationUrl }).select('id').single();
   if (error || !order) throw new Error('تعذر تسجيل الطلب');
   const { error: itemError } = await supabaseAdmin.from('order_items').insert(items.map(item => ({ ...item, order_id: order.id })));
   if (itemError) {
@@ -98,9 +100,21 @@ export const createOrder = createServerFn({ method: 'POST' }).inputValidator((in
   try {
     const { sendOrderToTelegram } = await import('./telegram.server');
     const payment = { cod: 'كاش عند الاستلام', instapay: 'إنستا باي', vodafone: 'فودافون كاش' }[data.paymentMethod];
-    await sendOrderToTelegram({ id: order.id, name: data.name, phone: data.phone, address: data.address, notes: data.notes, payment, hasProof: !!proofPath, zone: zone.name, deliveryFee, subtotal, loyaltyDiscount, total, locationUrl, items: items.map(i => ({ name: i.product_name, quantity: i.quantity, price: Number(i.unit_price) })) });
+    let proofUrl: string | null = null;
+    if (proofPath) {
+      const { data: signed } = await supabaseAdmin.storage.from('payment-proofs').createSignedUrl(proofPath, 60 * 60 * 24 * 7);
+      proofUrl = signed?.signedUrl ?? null;
+    }
+    await sendOrderToTelegram({ id: order.id, trackingCode, name: data.name, phone: data.phone, address: data.address, notes: data.notes, payment, hasProof: !!proofPath, proofUrl, zone: zone.name, deliveryFee, subtotal, loyaltyDiscount, total, locationUrl, items: items.map(i => ({ name: i.product_name, quantity: i.quantity, price: Number(i.unit_price) })) });
   } catch (e) { console.error('Telegram notify error', e); }
-  return { id: order.id, total };
+  return { id: order.id, total, trackingCode };
+});
+
+export const getTracking = createServerFn({ method: 'POST' }).inputValidator(input => z.object({ code: z.string().trim().min(4).max(20) }).parse(input)).handler(async ({ data }) => {
+  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+  const { data: o } = await supabaseAdmin.from('orders').select('tracking_code, tracking_stage, tracking_updated_at, status, created_at, zone_name, total').eq('tracking_code', data.code.toUpperCase()).maybeSingle();
+  if (!o) return null;
+  return { code: o.tracking_code, stage: o.tracking_stage, updatedAt: o.tracking_updated_at, cancelled: o.status === 'cancelled', createdAt: o.created_at, zone: o.zone_name, total: Number(o.total) };
 });
 
 export const getZones = createServerFn({ method: 'GET' }).handler(async () => {
