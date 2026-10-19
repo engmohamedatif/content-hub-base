@@ -21,7 +21,7 @@ export const Route = createFileRoute('/api/public/telegram/webhook')({
         const reply = (text: string) => telegramCall('sendMessage', { chat_id: ORDER_CHAT_ID, text, reply_to_message_id: msg.message_id });
         const cmd = parseTrackingCommand(msg.text);
         if (!cmd) {
-          if (msg.text.startsWith('/')) await reply('الصيغة: /1 رقم_التتبع\n/1 جاري التجهيز\n/2 تم التسليم لشركة الشحن\n/3 مع المندوب\n/4 تم التسليم');
+          if (/^(\/|[1-4]\/)/.test(msg.text)) await reply('الصيغة: /1 رقم_التتبع أو 1/ رقم_التتبع\n/1 تم استلام الطلب\n/2 تم تجهيز الطلب\n/3 تم التسليم لشركة الشحن\n/4 تم الاستلام');
           return Response.json({ ok: true });
         }
         const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
@@ -29,12 +29,12 @@ export const Route = createFileRoute('/api/public/telegram/webhook')({
         const patch: { tracking_stage: number; tracking_updated_at: string; status?: string } = { tracking_stage: cmd.stage, tracking_updated_at: now };
         const { data: current } = await supabaseAdmin.from('orders').select('id, status').eq('tracking_code', cmd.code).maybeSingle();
         if (!current) { await reply(`❌ لا يوجد طلب برقم التتبع ${cmd.code}`); return Response.json({ ok: true }); }
+        if (current.status === 'cancelled' || current.status === 'completed') { await reply('هذا الطلب مغلق ولا يمكن تغيير حالته'); return Response.json({ ok: true }); }
         if (cmd.stage >= 1 && current.status === 'new') patch.status = 'confirmed';
-        if (cmd.stage === 4 && current.status !== 'completed') patch.status = 'completed';
+        if (cmd.stage === 3) patch.status = 'completed';
         const { error } = await supabaseAdmin.from('orders').update(patch).eq('id', current.id);
         if (error) {
-          const { error: e2 } = await supabaseAdmin.from('orders').update({ tracking_stage: cmd.stage, tracking_updated_at: now }).eq('id', current.id);
-          await reply(e2 ? `❌ تعذر التحديث: ${e2.message}` : `⚠️ تم تحديث التتبع لـ "${TRACKING_STAGES[cmd.stage]}" لكن تعذر إكمال الطلب (${error.message.includes('Insufficient') ? 'المخزون غير كافٍ' : error.message})`);
+          await reply(`❌ تعذر التحديث: ${error.message.includes('Insufficient') ? 'المخزون غير كافٍ' : error.message}`);
           return Response.json({ ok: true });
         }
         await reply(`✅ الطلب ${cmd.code}: ${TRACKING_STAGES[cmd.stage]}`);

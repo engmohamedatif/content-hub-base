@@ -20,7 +20,9 @@ export async function telegramCall(method: string, body: Record<string, unknown>
     if (!token) { console.error('Telegram not configured'); return null; }
     res = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   }
-  if (!res.ok) console.error(`Telegram ${method} failed [${res.status}]: ${await res.text()}`);
+  if (!res.ok) throw new Error(`Telegram ${method} failed [${res.status}]: ${await res.text()}`);
+  const payload = await res.clone().json() as { ok?: boolean; description?: string };
+  if (payload.ok === false) throw new Error(`Telegram ${method} failed [${res.status}]: ${payload.description}`);
   return res;
 }
 
@@ -49,12 +51,13 @@ export async function sendOrderToTelegram(o: TelegramOrder) {
     `💳 الدفع: ${o.payment}${o.hasProof ? ' (الإيصال مرفق بالأسفل ✅)' : ''}`,
     '',
     '<b>تحديث الحالة:</b>',
-    `/1 ${o.trackingCode} — جاري التجهيز`,
-    `/2 ${o.trackingCode} — تم التسليم لشركة الشحن`,
-    `/3 ${o.trackingCode} — مع المندوب`,
-    `/4 ${o.trackingCode} — تم التسليم`,
+    `/1 ${o.trackingCode} — تم استلام الطلب`,
+    `/2 ${o.trackingCode} — تم تجهيز الطلب`,
+    `/3 ${o.trackingCode} — تم التسليم لشركة الشحن`,
+    `/4 ${o.trackingCode} — تم الاستلام`,
   ].filter(l => l !== '');
   await telegramCall('sendMessage', { chat_id: ORDER_CHAT_ID, text: lines.join('\n'), parse_mode: 'HTML', disable_web_page_preview: true });
+  await telegramCall('sendMessage', { chat_id: ORDER_CHAT_ID, text: o.trackingCode });
   if (o.proofUrl) {
     await telegramCall('sendPhoto', { chat_id: ORDER_CHAT_ID, photo: o.proofUrl, caption: `🧾 إيصال التحويل — طلب ${o.trackingCode}\n${o.name} — ${o.total} ج.م` });
   }
