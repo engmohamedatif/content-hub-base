@@ -177,3 +177,17 @@
 .chat-md ul { list-style: disc; padding-inline-start: 1.25rem; }
 .chat-md ol { list-style: decimal; padding-inline-start: 1.25rem; }
 .chat-md strong { color: var(--color-primary); }
+
+.reward-confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.reward-confetti i { position: absolute; top: -12px; width: 7px; height: 12px; background: var(--brand-gold); left: 12%; opacity: 0; }
+.reward-confetti i:nth-child(3n) { background: var(--sale); left: 45%; }
+.reward-confetti i:nth-child(3n + 1) { background: var(--primary); left: 78%; }
+.reward-confetti i:nth-child(4n) { left: 30%; }
+.reward-confetti i:nth-child(5n) { left: 65%; }
+@media (prefers-reduced-motion: no-preference) {
+  .reward-confetti i { animation: reward-fall 2.5s ease-out both; }
+  .reward-confetti i:nth-child(2n) { animation-delay: .3s; }
+  .reward-confetti i:nth-child(3n) { animation-delay: .7s; }
+  .reward-confetti i:nth-child(5n) { animation-delay: 1s; }
+}
+@keyframes reward-fall { 0% { opacity: 1; transform: translate(-40px, 0) rotate(0); } 100% { opacity: 0; transform: translate(60px, 240px) rotate(540deg); } }

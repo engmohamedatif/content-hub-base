@@ -9,3 +9,6 @@
 - The catalog and checkout RPC live in `src/lib/store.functions.ts`, while page interactions use shared store context; this separates trusted pricing from browser state.
 - Payment proofs use a private storage bucket and product photos use signed URLs from a private bucket; workspace policy disallows public buckets.
 - Arabic customer pages and administrator pages use TanStack file routes; this gives each screen a shareable URL.
+- Loyalty calculations are shared pure functions with Cairo calendar boundaries; checkout validates benefits on the server so browser state cannot change pricing.
+- Reward phone submissions validate authenticated purchase eligibility through row-level access and notify Telegram from the server; contact details stay private.
+- Tracking stages use zero-based persisted indices and recent-code browser storage is navigation convenience only, never authorization.
