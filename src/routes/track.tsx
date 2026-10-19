@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { Check, PackageSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getTracking } from '@/lib/store.functions';
-import { TRACKING_STAGES } from '@/lib/tracking';
+import { TRACKING_STAGES, getRecentTrackingCodes, saveTrackingCode } from '@/lib/tracking';
 import { StoreShell } from '@/components/store/store-ui';
 
 export const Route = createFileRoute('/track')({
@@ -29,21 +29,27 @@ function TrackPage() {
   const [code, setCode] = useState(initial ?? '');
   const [result, setResult] = useState<Result | undefined>();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [recent, setRecent] = useState<string[]>([]);
+  useEffect(() => { setRecent(getRecentTrackingCodes()); }, []);
   const lookup = async (c: string) => {
     if (c.trim().length < 4) return;
-    setLoading(true);
-    try { setResult(await fn({ data: { code: c } })); } finally { setLoading(false); }
+    setLoading(true); setError('');
+    try { const found = await fn({ data: { code: c } }); setResult(found); if (found) { saveTrackingCode(found.code); setRecent(getRecentTrackingCodes()); } } catch { setError('تعذر تحميل التتبع، حاولي مرة أخرى'); } finally { setLoading(false); }
   };
   useEffect(() => { if (initial) void lookup(initial); }, [initial]);
+  useEffect(() => { if (!result || result.cancelled || result.stage === 3) return; const timer = setInterval(() => { void lookup(result.code); }, 15000); return () => clearInterval(timer); }, [result?.code, result?.stage, result?.cancelled]);
   const submit = (e: FormEvent) => { e.preventDefault(); void lookup(code); };
 
   return <StoreShell><main className="mx-auto max-w-xl px-6 py-14">
     <PackageSearch className="mx-auto size-12 text-brand-gold" />
     <h1 className="mt-4 text-center text-3xl font-bold">تتبع طلبك</h1>
     <form onSubmit={submit} className="mt-8 flex gap-2">
-      <input dir="ltr" value={code} onChange={e => setCode(e.target.value)} placeholder="رقم التتبع" className="flex-1 rounded-md border border-input bg-background px-4 py-2 text-center uppercase tracking-widest" />
+      <input dir="ltr" value={code} onChange={e => setCode(e.target.value)} placeholder="رقم التتبع" className="min-w-0 flex-1 rounded-md border border-input bg-background px-4 py-2 text-center uppercase tracking-widest" />
       <Button type="submit" disabled={loading}>{loading ? '...' : 'تتبع'}</Button>
     </form>
+    {recent.length > 0 && <div className="mt-5"><p className="mb-2 text-sm text-muted-foreground">شحناتك الأخيرة على هذا الجهاز</p><div className="flex flex-wrap gap-2">{recent.map(c => <Button key={c} variant="outline" onClick={() => { setCode(c); void lookup(c); }}><span dir="ltr">{c}</span></Button>)}</div></div>}
+    {error && <p role="alert" className="mt-4 text-destructive">{error}</p>}
     {result === null && <p className="mt-8 text-center text-destructive">لا يوجد طلب بهذا الرقم</p>}
     {result && <section className="mt-10 rounded-xl border border-border bg-card p-6">
       <p className="text-center text-sm text-muted-foreground">رقم التتبع <span dir="ltr" className="font-bold text-foreground">{result.code}</span></p>
@@ -52,7 +58,7 @@ function TrackPage() {
         {TRACKING_STAGES.map((label, i) => {
           const done = i <= result.stage; const current = i === result.stage;
           return <li key={label} className="flex items-center gap-4">
-            <span className={`flex size-9 shrink-0 items-center justify-center rounded-full border-2 ${done ? 'border-brand-gold bg-brand-gold text-background' : 'border-border text-muted-foreground'}`}>{done ? <Check className="size-5" /> : i}</span>
+            <span className={`flex size-9 shrink-0 items-center justify-center rounded-full border-2 ${done ? 'border-brand-gold bg-brand-gold text-background' : 'border-border text-muted-foreground'}`}>{done ? <Check className="size-5" /> : i + 1}</span>
             <span className={`${current ? 'font-bold text-foreground' : done ? 'text-foreground' : 'text-muted-foreground'}`}>{label}{current && result.updatedAt && <span className="block text-xs font-normal text-muted-foreground">{new Date(result.updatedAt).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' })}</span>}</span>
           </li>;
         })}

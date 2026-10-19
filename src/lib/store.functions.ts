@@ -37,7 +37,8 @@ export const getCatalog = createServerFn({ method: 'GET' }).handler(async () => 
 
 async function loyaltyFor(supabaseAdmin: any, userId: string) {
   const { loyaltyStatus } = await import('./loyalty');
-  const { data } = await supabaseAdmin.from('orders').select('created_at, status, order_items(quantity, unit_price, loyalty_eligible)').eq('user_id', userId).neq('status', 'cancelled');
+  const { data, error } = await supabaseAdmin.from('orders').select('created_at, status, order_items(quantity, unit_price, loyalty_eligible)').eq('user_id', userId).neq('status', 'cancelled');
+  if (error) throw new Error('تعذر حساب المكافآت');
   const orders = (data ?? []).map((o: any) => ({ created_at: o.created_at, eligible_amount: (o.order_items ?? []).filter((i: any) => i.loyalty_eligible).reduce((s: number, i: any) => s + Number(i.unit_price) * i.quantity, 0) }));
   return loyaltyStatus(orders);
 }
@@ -56,7 +57,7 @@ async function userIdFromRequest(supabaseAdmin: any): Promise<string | null> {
 export const createOrder = createServerFn({ method: 'POST' }).inputValidator((input) => orderSchema.parse(input)).handler(async ({ data }) => {
   if (data.paymentMethod !== 'cod' && !data.proof) throw new Error('صورة إيصال التحويل مطلوبة للدفع الإلكتروني');
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  const { loyaltyDiscountFor, orderTotal } = await import('./loyalty');
+  const { eligibleItemAmount, loyaltyDiscountFor, orderTotal } = await import('./loyalty');
   const userId = await userIdFromRequest(supabaseAdmin);
   const { data: zone } = await supabaseAdmin.from('delivery_zones').select('id, name, fee').eq('id', data.zoneId).eq('active', true).maybeSingle();
   if (!zone) throw new Error('اختر منطقة التوصيل');
@@ -82,9 +83,9 @@ export const createOrder = createServerFn({ method: 'POST' }).inputValidator((in
     if (uploadError) throw new Error('تعذر رفع إثبات التحويل');
   }
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-  const eligible = items.filter(i => i.loyalty_eligible).reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+  const eligible = items.reduce((sum, item) => sum + eligibleItemAmount(item.unit_price, item.quantity, !item.loyalty_eligible), 0);
   const loyalty = userId ? await loyaltyFor(supabaseAdmin, userId) : null;
-  const loyaltyDiscount = loyaltyDiscountFor(eligible, !!loyalty?.discountActive);
+  const loyaltyDiscount = loyaltyDiscountFor(eligible, !!loyalty?.discountActive && loyalty.monthSpend + eligible < 3000);
   const deliveryFee = Number(zone.fee);
   const total = orderTotal(subtotal, loyaltyDiscount, deliveryFee);
   const locationUrl = data.location ? `https://www.google.com/maps?q=${data.location.lat.toFixed(6)},${data.location.lng.toFixed(6)}` : null;
@@ -107,7 +108,8 @@ export const createOrder = createServerFn({ method: 'POST' }).inputValidator((in
     }
     await sendOrderToTelegram({ id: order.id, trackingCode, name: data.name, phone: data.phone, address: data.address, notes: data.notes, payment, hasProof: !!proofPath, proofUrl, zone: zone.name, deliveryFee, subtotal, loyaltyDiscount, total, locationUrl, items: items.map(i => ({ name: i.product_name, quantity: i.quantity, price: Number(i.unit_price) })) });
   } catch (e) { console.error('Telegram notify error', e); }
-  return { id: order.id, total, trackingCode };
+  const updatedLoyalty = userId ? await loyaltyFor(supabaseAdmin, userId) : null;
+  return { id: order.id, total, trackingCode, loyalty: updatedLoyalty };
 });
 
 export const getTracking = createServerFn({ method: 'POST' }).inputValidator(input => z.object({ code: z.string().trim().min(4).max(20) }).parse(input)).handler(async ({ data }) => {
@@ -124,8 +126,24 @@ export const getZones = createServerFn({ method: 'GET' }).handler(async () => {
 });
 
 export const getMyLoyalty = createServerFn({ method: 'GET' }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  return loyaltyFor(supabaseAdmin, context.userId);
+  return loyaltyFor(context.supabase, context.userId);
+});
+
+export const getMyTracking = createServerFn({ method: 'GET' }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  const { data, error } = await context.supabase.from('orders').select('tracking_code, tracking_stage, status, created_at').eq('user_id', context.userId).order('created_at', { ascending: false });
+  if (error) throw new Error('تعذر تحميل طلباتك');
+  return data ?? [];
+});
+
+export const saveRewardPhone = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth]).inputValidator(input => z.object({ phone: z.string().trim().regex(/^01[0-9]{9}$/, 'اكتبي رقم موبايل مصري صحيح') }).parse(input)).handler(async ({ context, data }) => {
+  const loyalty = await loyaltyFor(context.supabase, context.userId);
+  if (loyalty.monthSpend < 3000) throw new Error('تسجيل رقم المكافأة متاح عند الوصول إلى ٣٠٠٠ جنيه');
+  const { error } = await context.supabase.from('profiles').update({ phone: data.phone }).eq('id', context.userId);
+  if (error) throw new Error('تعذر حفظ رقم الهاتف');
+  const { telegramCall, ORDER_CHAT_ID } = await import('./telegram.server');
+  const response = await telegramCall('sendMessage', { chat_id: ORDER_CHAT_ID, text: `🎁 طلب التواصل لاستلام مكافأة نقاطي\nرقم العميلة: ${data.phone}\nالمشتريات المؤهلة: ${loyalty.monthSpend} ج.م\nالمكافآت: ${loyalty.earnedGifts.join('، ')}` });
+  if (!response) throw new Error('تم حفظ الرقم لكن تعذر إرسال طلب التواصل، حاولي مرة أخرى');
+  return { ok: true };
 });
 
 export const resolveSearch = createServerFn({ method: 'POST' }).inputValidator(input => z.object({ q: z.string().max(200) }).parse(input)).handler(async ({ data }) => {
