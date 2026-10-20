@@ -36,6 +36,6 @@ describe("App routing", () => {
 
     const router = renderAt("/this-route-does-not-exist");
 
-    await waitFor(() => expect(router.state.matches.some(match => match.globalNotFound)).toBe(true));
+    await waitFor(() => expect(router.state.matches.some(match => match.status === 'notFound' || match._notFound)).toBe(true));
   });
 });
