@@ -108,15 +108,15 @@ export const createOrder = createServerFn({ method: 'POST' }).inputValidator((in
     }
     await sendOrderToTelegram({ id: order.id, trackingCode, name: data.name, phone: data.phone, address: data.address, notes: data.notes, payment, hasProof: !!proofPath, proofUrl, zone: zone.name, deliveryFee, subtotal, loyaltyDiscount, total, locationUrl, items: items.map(i => ({ name: i.product_name, quantity: i.quantity, price: Number(i.unit_price) })) });
   } catch (e) { console.error('Telegram notify error', e); }
-  const updatedLoyalty = userId ? await loyaltyFor(supabaseAdmin, userId) : null;
+  const updatedLoyalty = userId ? await loyaltyFor(supabaseAdmin, userId).catch(() => null) : null;
   return { id: order.id, total, trackingCode, loyalty: updatedLoyalty };
 });
 
 export const getTracking = createServerFn({ method: 'POST' }).inputValidator(input => z.object({ code: z.string().trim().min(4).max(20) }).parse(input)).handler(async ({ data }) => {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data: o } = await supabaseAdmin.from('orders').select('tracking_code, tracking_stage, tracking_updated_at, status, created_at, zone_name, total').eq('tracking_code', data.code.toUpperCase()).maybeSingle();
-  if (!o) return null;
-  return { code: o.tracking_code, stage: o.tracking_stage, updatedAt: o.tracking_updated_at, cancelled: o.status === 'cancelled', createdAt: o.created_at, zone: o.zone_name, total: Number(o.total) };
+  if (!o?.tracking_code) return null;
+  return { code: o.tracking_code, stage: o.status === 'completed' ? 3 : Math.min(o.tracking_stage, 3), updatedAt: o.tracking_updated_at, cancelled: o.status === 'cancelled', createdAt: o.created_at, zone: o.zone_name, total: Number(o.total) };
 });
 
 export const getZones = createServerFn({ method: 'GET' }).handler(async () => {
@@ -132,13 +132,13 @@ export const getMyLoyalty = createServerFn({ method: 'GET' }).middleware([requir
 export const getMyTracking = createServerFn({ method: 'GET' }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const { data, error } = await context.supabase.from('orders').select('tracking_code, tracking_stage, status, created_at').eq('user_id', context.userId).order('created_at', { ascending: false });
   if (error) throw new Error('تعذر تحميل طلباتك');
-  return data ?? [];
+  return (data ?? []).flatMap(o => o.tracking_code ? [{ ...o, tracking_code: o.tracking_code }] : []);
 });
 
 export const saveRewardPhone = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth]).inputValidator(input => z.object({ phone: z.string().trim().regex(/^01[0-9]{9}$/, 'اكتبي رقم موبايل مصري صحيح') }).parse(input)).handler(async ({ context, data }) => {
   const loyalty = await loyaltyFor(context.supabase, context.userId);
   if (loyalty.monthSpend < 3000) throw new Error('تسجيل رقم المكافأة متاح عند الوصول إلى ٣٠٠٠ جنيه');
-  const { error } = await context.supabase.from('profiles').update({ phone: data.phone }).eq('id', context.userId);
+  const { error } = await context.supabase.from('profiles').upsert({ id: context.userId, phone: data.phone });
   if (error) throw new Error('تعذر حفظ رقم الهاتف');
   const { telegramCall, ORDER_CHAT_ID } = await import('./telegram.server');
   const response = await telegramCall('sendMessage', { chat_id: ORDER_CHAT_ID, text: `🎁 طلب التواصل لاستلام مكافأة نقاطي\nرقم العميلة: ${data.phone}\nالمشتريات المؤهلة: ${loyalty.monthSpend} ج.م\nالمكافآت: ${loyalty.earnedGifts.join('، ')}` });
