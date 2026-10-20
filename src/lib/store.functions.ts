@@ -116,7 +116,7 @@ export const getTracking = createServerFn({ method: 'POST' }).inputValidator(inp
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data: o } = await supabaseAdmin.from('orders').select('tracking_code, tracking_stage, tracking_updated_at, status, created_at, zone_name, total').eq('tracking_code', data.code.toUpperCase()).maybeSingle();
   if (!o?.tracking_code) return null;
-  return { code: o.tracking_code, stage: o.tracking_stage, updatedAt: o.tracking_updated_at, cancelled: o.status === 'cancelled', createdAt: o.created_at, zone: o.zone_name, total: Number(o.total) };
+  return { code: o.tracking_code, stage: o.status === 'completed' ? 3 : Math.min(o.tracking_stage, 3), updatedAt: o.tracking_updated_at, cancelled: o.status === 'cancelled', createdAt: o.created_at, zone: o.zone_name, total: Number(o.total) };
 });
 
 export const getZones = createServerFn({ method: 'GET' }).handler(async () => {
