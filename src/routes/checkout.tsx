@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { createOrder, getMyLoyalty, getZones } from '@/lib/store.functions';
 import { discountOf, money, priceOf, useStore } from '@/components/store/store-context';
 import { loyaltyDiscountFor, orderTotal } from '@/lib/loyalty';
+import { saveTrackingCode } from '@/lib/tracking';
+import { RewardCelebration } from '@/components/store/RewardCelebration';
 import { PageTitle, StoreShell } from '@/components/store/store-ui';
 
 const formSchema = z.object({ name: z.string().trim().min(2,'اكتب الاسم بالكامل'), phone: z.string().trim().regex(/^01[0-9]{9}$/,'اكتب رقم موبايل مصري صحيح'), address: z.string().trim().min(8,'اكتب العنوان بالتفصيل'), notes: z.string().max(1000) });
@@ -32,11 +34,12 @@ function Checkout() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState('');
+  const [reward, setReward] = useState('');
   const lines = cart.map(line => ({ line, product: products.find(p => p.id === line.id) })).filter(x => x.product);
   const subtotal = lines.reduce((sum, x) => sum + priceOf(x.product!) * x.line.quantity, 0);
   const eligible = lines.filter(x => discountOf(x.product!) === 0).reduce((sum, x) => sum + priceOf(x.product!) * x.line.quantity, 0);
   const zone = zones.find(z => z.id === zoneId);
-  const loyaltyDiscount = loyaltyDiscountFor(eligible, !!loyalty?.discountActive);
+  const loyaltyDiscount = loyaltyDiscountFor(eligible, !!loyalty?.discountActive && loyalty.monthSpend + eligible < 3000);
   const total = orderTotal(subtotal, loyaltyDiscount, zone?.fee ?? 0);
 
   function locate() {
@@ -59,11 +62,14 @@ function Checkout() {
       let encoded: { base64: string; type: 'image/jpeg'|'image/png'|'image/webp' } | undefined;
       if (proof) { const bytes = new Uint8Array(await proof.arrayBuffer()); let binary = ''; for (const byte of bytes) binary += String.fromCharCode(byte); encoded = { base64: btoa(binary), type: proof.type as 'image/jpeg'|'image/png'|'image/webp' }; }
       const response = await orderFn({ data: { ...result.data, paymentMethod, zoneId: zone.id, location, items: lines.map(x => ({ productId: x.line.id, quantity: x.line.quantity })), proof: encoded } });
+      saveTrackingCode(response.trackingCode);
+      if (response.loyalty?.earnedGifts.length) setReward(`كسبتي ${response.loyalty.earnedGifts.join(' و ')}! سجّلي رقمك من حسابي عشان نتواصل معاكي؛ الهدايا بتحل محل خصم ٣٪.`);
+      else if (response.loyalty?.nextMonthDiscount) setReward(`كسبتي خصم ٣٪ طوال شهر ${response.loyalty.nextMonthLabel}!`);
       setSuccess(response.trackingCode); clearCart();
     } catch (err) { setError(err instanceof Error ? err.message : 'تعذر إرسال الطلب، حاول مرة أخرى'); } finally { setBusy(false); }
   }
 
-  if (success) return <StoreShell><main className="mx-auto max-w-lg px-6 py-20 text-center"><CheckCircle2 className="mx-auto size-16 text-brand-gold" /><h1 className="mt-6 text-3xl font-bold">تم استلام طلبك بنجاح</h1><p className="mt-4 text-muted-foreground">رقم التتبع: <span dir="ltr" className="font-bold text-foreground">{success}</span></p><p className="mt-2 text-sm text-muted-foreground">احتفظ برقم التتبع لمتابعة حالة طلبك. فريق برستيج زون هيتواصل معاك لتأكيد الطلب.</p><div className="mt-8 flex justify-center gap-3"><Button asChild><Link to="/track" search={{ code: success }}>تتبع طلبك</Link></Button><Button asChild variant="outline"><Link to="/">العودة للرئيسية</Link></Button></div></main></StoreShell>;
+  if (success) return <StoreShell><main className="mx-auto max-w-lg px-6 py-20 text-center"><CheckCircle2 className="mx-auto size-16 text-brand-gold" /><h1 className="mt-6 text-3xl font-bold">تم استلام طلبك بنجاح</h1><p className="mt-4 text-muted-foreground">رقم التتبع: <span dir="ltr" className="font-bold text-foreground">{success}</span></p><p className="mt-2 text-sm text-muted-foreground">احتفظي برقم التتبع؛ تقدري تفتحيه تاني من تتبع الشحنة أو حسابي.</p>{reward && <div className="mt-6"><RewardCelebration rewardKey={success} message={reward} /><Button asChild variant="outline" className="mt-3"><Link to="/account">حسابي والمكافآت</Link></Button></div>}<div className="mt-8 flex justify-center gap-3"><Button asChild><Link to="/track" search={{ code: success }}>تتبع طلبك</Link></Button><Button asChild variant="outline"><Link to="/">العودة للرئيسية</Link></Button></div></main></StoreShell>;
 
   return <StoreShell><main className="mx-auto min-h-[55vh] max-w-7xl px-4 py-10 sm:px-6">
     <PageTitle eyebrow="الخطوة الأخيرة" title="إتمام الطلب" />
@@ -88,7 +94,7 @@ function Checkout() {
           {loyaltyDiscount > 0 && <div className="flex justify-between text-primary"><span className="flex items-center gap-1"><Gift className="size-4" />خصم نقاطي 3%</span><span>-{money(loyaltyDiscount)}</span></div>}
           <div className="flex justify-between"><span>التوصيل{zone ? ` (${zone.name})` : ''}</span><span>{zone ? money(zone.fee) : 'اختر منطقتك'}</span></div></div>
         <div className="mt-4 flex justify-between border-t border-border pt-4 text-lg font-bold"><span>الإجمالي النهائي</span><span>{money(total)}</span></div>
-        {session && loyalty && !loyalty.discountActive && <p className="mt-3 text-xs leading-6 text-muted-foreground">فاضلك {money(loyalty.remainingForDiscount)} من المنتجات غير المخفضة هذا الشهر وتاخد خصم 3% لمدة 30 يوم.</p>}
+        {session && loyalty && <p className="mt-3 text-xs leading-6 text-muted-foreground">{loyalty.discountCancelled ? 'وصلتي لمستوى الهدايا، وده بيحل محل خصم ٣٪.' : loyalty.nextMonthDiscount ? `مبروك! خصم ٣٪ مستنيكي طوال شهر ${loyalty.nextMonthLabel}.` : `فاضلك ${money(loyalty.remainingForDiscount)} من المنتجات بدون عروض وتاخدي خصم ٣٪ طوال الشهر التالي.`}</p>}
         <Button type="submit" form="checkout" className="mt-6 w-full" size="lg" disabled={busy || !lines.length}>{busy ? 'جاري إرسال الطلب...' : 'تأكيد الطلب'}</Button>
       </aside>
     </div>
