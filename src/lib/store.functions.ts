@@ -21,18 +21,50 @@ function publicClient() {
   } }, auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-export const getCatalog = createServerFn({ method: 'GET' }).handler(async () => {
-  const { data, error } = await publicClient().from('products').select('*').eq('active', true).order('created_at', { ascending: false });
-  if (error) throw new Error('تعذر تحميل المنتجات');
+export const PAGE_SIZE = 10;
+
+async function signProductImages<T extends { image_urls: string[] }>(product: T) {
+  if (!product.image_urls.some(path => !path.startsWith('https://'))) return product;
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  return Promise.all((data ?? []).map(async product => {
-    const image_urls = await Promise.all(product.image_urls.map(async path => {
-      if (path.startsWith('https://')) return path;
-      const { data: signed } = await supabaseAdmin.storage.from('product-images').createSignedUrl(path, 3600);
-      return signed?.signedUrl ?? '';
-    }));
-    return { ...product, image_urls };
+  const image_urls = await Promise.all(product.image_urls.map(async path => {
+    if (path.startsWith('https://')) return path;
+    const { data: signed } = await supabaseAdmin.storage.from('product-images').createSignedUrl(path, 3600);
+    return signed?.signedUrl ?? '';
   }));
+  return { ...product, image_urls };
+}
+
+const catalogPageSchema = z.object({
+  page: z.number().int().min(0).max(1000).default(0),
+  category: z.string().max(100).optional(),
+  subcategory: z.string().max(100).optional(),
+  q: z.string().max(100).optional(),
+  favorites: z.array(z.string().uuid()).max(100).optional(),
+  deals: z.boolean().optional(),
+});
+
+// Catalog is paginated server-side: the browser never loads the whole product list at once.
+export const getCatalogPage = createServerFn({ method: 'GET' }).inputValidator(input => catalogPageSchema.parse(input ?? {})).handler(async ({ data }) => {
+  let query = publicClient().from('products').select('*', { count: 'exact' }).eq('active', true);
+  if (data.category) query = query.eq('category', data.category);
+  if (data.subcategory) query = query.eq('subcategory', data.subcategory);
+  if (data.deals) query = query.gt('discount_amount', 0);
+  if (data.favorites) query = query.in('id', data.favorites);
+  if (data.q) {
+    const term = data.q.replace(/[%_,()\\]/g, ' ').trim();
+    if (term) query = query.or(`name.ilike.%${term}%,category.ilike.%${term}%,subcategory.ilike.%${term}%`);
+  }
+  const from = data.page * PAGE_SIZE;
+  const { data: rows, error, count } = await query.order('created_at', { ascending: false }).range(from, from + PAGE_SIZE - 1);
+  if (error) throw new Error('تعذر تحميل المنتجات');
+  const items = await Promise.all((rows ?? []).map(signProductImages));
+  return { items, total: count ?? items.length };
+});
+
+export const getProductsByIds = createServerFn({ method: 'GET' }).inputValidator(input => z.object({ ids: z.array(z.string().uuid()).min(1).max(50) }).parse(input)).handler(async ({ data }) => {
+  const { data: rows, error } = await publicClient().from('products').select('*').eq('active', true).in('id', data.ids);
+  if (error) throw new Error('تعذر تحميل المنتجات');
+  return Promise.all((rows ?? []).map(signProductImages));
 });
 
 async function loyaltyFor(supabaseAdmin: any, userId: string) {
