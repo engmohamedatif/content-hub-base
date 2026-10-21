@@ -2,11 +2,11 @@
 - [x] Build Arabic storefront, catalog, product detail, favorites, cart, and checkout.
 - [x] Build administrator login, products, orders, statistics, and admin invitations.
 - [x] Verify public storefront, category filters, payment selection, and login/reset screens on desktop and mobile.
-- [ ] Verify authenticated administration and complete a real order once the owner creates and confirms an admin account and adds a product.
+- [ ] Verify authenticated administration (requires an administrator session); customer checkout verified with a labelled test order.
 - [x] Require transfer receipt for electronic payments, show centered add-to-cart feedback, clarify admin order statuses, and show signed-in customers products first with subtle motion.
 - [x] AI customer assistant (catalog search by category, real add-to-cart, quick fixed replies, saved chat) + phone menu
-- [ ] Update Telegram stages and send a separate tracking-code message.
-- [ ] Make customer tracking reachable and remember recent orders.
-- [ ] Apply next-calendar-month loyalty rules, exclude discounted products and cancel 3% at the gift level.
-- [ ] Add reward celebrations, encouragement and verified reward phone contact.
-- [ ] Test loyalty rules and verify customer tracking and rewards flows.
+- [x] Update Telegram stages and send a separate tracking-code message.
+- [x] Make customer tracking reachable and remember recent orders.
+- [x] Apply next-calendar-month loyalty rules, exclude discounted products and cancel 3% at the gift level.
+- [x] Add reward celebrations, encouragement and authenticated reward phone contact.
+- [x] Test loyalty rules and verify customer tracking and rewards flows.
