@@ -110,7 +110,7 @@ export function CustomerChat() {
                 return found.length ? <div key={i} className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{found.map(prod => prod && <div key={prod.id} className="w-36 shrink-0 overflow-hidden rounded-2xl border border-border bg-card">
                   <Link to="/product/$id" params={{ id: prod.id }} onClick={() => setOpen(false)} className="block aspect-square bg-secondary">{prod.image_urls[0] && <img src={prod.image_urls[0]} alt={prod.name} className="h-full w-full object-cover" />}</Link>
                   <div className="p-2"><p className="line-clamp-2 text-xs font-bold">{prod.name}</p><p className="mt-1 text-sm font-extrabold text-primary">{money(priceOf(prod))}{priceOf(prod) < prod.price && <span className="mr-1 text-[10px] text-muted-foreground line-through">{money(prod.price)}</span>}</p>
-                    <button type="button" onClick={() => addToCart(prod.id)} className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-full bg-primary py-1.5 text-xs font-bold text-primary-foreground"><Plus className="size-3" />للسلة</button></div>
+                    <button type="button" onClick={() => addToCart(prod.id, 1, prod)} className="mt-1.5 flex w-full items-center justify-center gap-1 rounded-full bg-primary py-1.5 text-xs font-bold text-primary-foreground"><Plus className="size-3" />للسلة</button></div>
                 </div>)}</div> : null;
               }
               if (tp.type === 'tool-add_to_cart' && tp.state === 'output-available') {
