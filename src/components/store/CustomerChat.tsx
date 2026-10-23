@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import ReactMarkdown from 'react-markdown';
 import { Link } from '@tanstack/react-router';
 import { MessageCircleHeart, Plus, RotateCcw, SendHorizonal, ShoppingCart, X } from 'lucide-react';
+import { getProductsByIds } from '@/lib/store.functions';
 import logoUrl from '@/assets/prestige-zone-logo.jpg';
 import { money, priceOf, useStore } from './store-context';
 
@@ -32,7 +34,16 @@ export function CustomerChat() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [hint, setHint] = useState(false);
-  const { products, addToCart } = useStore();
+  const { addToCart } = useStore();
+  // Product details for chat search results are fetched by id — the catalog itself stays paginated.
+  const searchIds = useMemo(() => [...new Set(messages.flatMap(m => (m.parts as ToolPart[]).filter(p => p.type === 'tool-search_products' && p.state === 'output-available').flatMap(p => ((p.output as { products?: FoundProduct[] })?.products ?? []).map(f => f.id))))].slice(-40), [messages]);
+  const { data: foundProducts = [] } = useQuery({
+    queryKey: ['chat-products', searchIds.join(',')],
+    queryFn: () => getProductsByIds({ data: { ids: searchIds } }),
+    enabled: searchIds.length > 0,
+    staleTime: 300000,
+  });
+  const foundMap = useMemo(() => new Map(foundProducts.map(p => [p.id, p])), [foundProducts]);
   const applied = useRef<Set<string>>(new Set());
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -95,7 +106,7 @@ export function CustomerChat() {
               if (p.type === 'text') return m.role === 'user' ? <p key={i} className="whitespace-pre-wrap text-[15px]">{p.text}</p> : <div key={i} className="chat-md rounded-2xl rounded-tl-sm bg-card px-4 py-3 text-[15px] leading-7 shadow-sm"><ReactMarkdown components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" className="font-bold text-primary underline">{children}</a> }}>{p.text}</ReactMarkdown></div>;
               const tp = p as unknown as ToolPart;
               if (tp.type === 'tool-search_products' && tp.state === 'output-available') {
-                const found = ((tp.output as { products?: FoundProduct[] })?.products ?? []).map(f => products.find(x => x.id === f.id)).filter(Boolean).slice(0, 4);
+                const found = ((tp.output as { products?: FoundProduct[] })?.products ?? []).map(f => foundMap.get(f.id)).filter(Boolean).slice(0, 4);
                 return found.length ? <div key={i} className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">{found.map(prod => prod && <div key={prod.id} className="w-36 shrink-0 overflow-hidden rounded-2xl border border-border bg-card">
                   <Link to="/product/$id" params={{ id: prod.id }} onClick={() => setOpen(false)} className="block aspect-square bg-secondary">{prod.image_urls[0] && <img src={prod.image_urls[0]} alt={prod.name} className="h-full w-full object-cover" />}</Link>
                   <div className="p-2"><p className="line-clamp-2 text-xs font-bold">{prod.name}</p><p className="mt-1 text-sm font-extrabold text-primary">{money(priceOf(prod))}{priceOf(prod) < prod.price && <span className="mr-1 text-[10px] text-muted-foreground line-through">{money(prod.price)}</span>}</p>
