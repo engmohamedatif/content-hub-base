@@ -7,6 +7,7 @@
 
 - Store data and authorization live in Lovable Cloud with row-level policies; this keeps private orders and administration server-verified.
 - The catalog and checkout RPC live in `src/lib/store.functions.ts`, while page interactions use shared store context; this separates trusted pricing from browser state.
+- The catalog is served paginated (10 per page via `getCatalogPage`) and pages are loaded progressively; the browser never fetches the full product list at once — cart, product pages, and chat fetch products by id with `getProductsByIds`. Why: the catalog grows large and whole-list loading is slow.
 - Payment proofs use a private storage bucket and product photos use signed URLs from a private bucket; workspace policy disallows public buckets.
 - Arabic customer pages and administrator pages use TanStack file routes; this gives each screen a shareable URL.
 - Loyalty calculations are shared pure functions with Cairo calendar boundaries; checkout validates benefits on the server so browser state cannot change pricing.
