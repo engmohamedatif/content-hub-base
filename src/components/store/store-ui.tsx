@@ -78,7 +78,7 @@ export function ProductCard({ product }: { product: Product }) {
       <p className="line-clamp-1 text-xs text-muted-foreground">{product.card_description || product.category}</p>
       <div className="mt-auto flex items-end justify-between gap-2 pt-1">
         <div className="min-w-0"><strong className="block text-lg font-extrabold leading-6 text-primary">{money(priceOf(product))}</strong>{discounted > 0 && <del className="text-xs text-muted-foreground">{money(product.price)}</del>}</div>
-        <Button size="icon" className="size-10 shrink-0 rounded-full" disabled={product.stock === 0} aria-label={product.stock ? 'أضف للسلة' : 'نفدت الكمية'} onClick={() => addToCart(product.id)}><Plus className="size-5" /></Button>
+        <Button size="icon" className="size-10 shrink-0 rounded-full" disabled={product.stock === 0} aria-label={product.stock ? 'أضف للسلة' : 'نفدت الكمية'} onClick={() => addToCart(product.id, 1, product)}><Plus className="size-5" /></Button>
       </div>
       {product.stock === 0 && <span className="text-xs font-bold text-destructive">نفدت الكمية</span>}
     </div>
