@@ -35,15 +35,6 @@ export function CustomerChat() {
   const [input, setInput] = useState('');
   const [hint, setHint] = useState(false);
   const { addToCart } = useStore();
-  // Product details for chat search results are fetched by id — the catalog itself stays paginated.
-  const searchIds = useMemo(() => [...new Set(messages.flatMap(m => (m.parts as ToolPart[]).filter(p => p.type === 'tool-search_products' && p.state === 'output-available').flatMap(p => ((p.output as { products?: FoundProduct[] })?.products ?? []).map(f => f.id))))].slice(-40), [messages]);
-  const { data: foundProducts = [] } = useQuery({
-    queryKey: ['chat-products', searchIds.join(',')],
-    queryFn: () => getProductsByIds({ data: { ids: searchIds } }),
-    enabled: searchIds.length > 0,
-    staleTime: 300000,
-  });
-  const foundMap = useMemo(() => new Map(foundProducts.map(p => [p.id, p])), [foundProducts]);
   const applied = useRef<Set<string>>(new Set());
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
