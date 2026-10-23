@@ -44,6 +44,15 @@ export function CustomerChat() {
     transport: new DefaultChatTransport({ api: '/api/chat' }),
   });
   const busy = status === 'submitted' || status === 'streaming';
+  // Product details for chat search results are fetched by id — the catalog itself stays paginated.
+  const searchIds = useMemo(() => [...new Set(messages.flatMap(m => (m.parts as ToolPart[]).filter(p => p.type === 'tool-search_products' && p.state === 'output-available').flatMap(p => ((p.output as { products?: FoundProduct[] })?.products ?? []).map(f => f.id))))].slice(-40), [messages]);
+  const { data: foundProducts = [] } = useQuery({
+    queryKey: ['chat-products', searchIds.join(',')],
+    queryFn: () => getProductsByIds({ data: { ids: searchIds } }),
+    enabled: searchIds.length > 0,
+    staleTime: 300000,
+  });
+  const foundMap = useMemo(() => new Map(foundProducts.map(p => [p.id, p])), [foundProducts]);
 
   useEffect(() => {
     // Mark carts already applied in restored history so reloads never re-add items.
