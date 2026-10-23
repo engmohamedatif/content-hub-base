@@ -19,7 +19,7 @@ type Pay = typeof PAYMENTS[number][0];
 export const Route = createFileRoute('/checkout')({ head: () => ({ meta: [{ title: 'إتمام الطلب | برستيج زون' }, { name: 'description', content: 'اختر منطقتك وطريقة الدفع وأكمل طلبك من برستيج زون.' }, { property: 'og:title', content: 'إتمام الطلب | برستيج زون' }, { property: 'og:description', content: 'أكمل طلبك واختر طريقة الدفع المناسبة.' }, { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary_large_image' }] }), component: Checkout });
 
 function Checkout() {
-  const { products, cart, clearCart, session } = useStore();
+  const { cartProducts: products, cart, clearCart, session } = useStore();
   const orderFn = useServerFn(createOrder);
   const zonesFn = useServerFn(getZones);
   const loyaltyFn = useServerFn(getMyLoyalty);

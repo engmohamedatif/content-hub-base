@@ -1,10 +1,13 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { useEffect, useRef } from 'react';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Truck, BadgePercent, Banknote } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import hero from '@/assets/beauty-hero.jpg';
 import baby from '@/assets/category-baby.jpg';
 import paper from '@/assets/category-paper.jpg';
-import { useStore } from '@/components/store/store-context';
+import { getCatalogPage, PAGE_SIZE } from '@/lib/store.functions';
+import { useStore, type Product } from '@/components/store/store-context';
 import { CategoryStrip, PageTitle, ProductCard, StoreShell } from '@/components/store/store-ui';
 
 export const Route = createFileRoute('/')({ head: () => ({ meta: [{ title: 'برستيج زون | كل احتياجات البيت والعناية' }, { name: 'description', content: 'تسوق منتجات العناية والطفل والبيت من برستيج زون بأسعار مناسبة والدفع عند الاستلام.' }, { property: 'og:title', content: 'برستيج زون | كل احتياجات البيت والعناية' }, { property: 'og:description', content: 'منتجات العناية والطفل والبيت بأسعار مناسبة من برستيج زون.' }, { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary_large_image' }] }), component: Home });
@@ -12,8 +15,27 @@ export const Route = createFileRoute('/')({ head: () => ({ meta: [{ title: 'بر
 const shopAll = { q: '', category: '', favorites: false };
 
 function Home() {
-  const { products, session, authReady } = useStore();
-  const deals = products.filter(p => p.discount_amount > 0);
+  const { session, authReady } = useStore();
+  const { data: dealsData } = useQuery({ queryKey: ['catalog-deals'], queryFn: () => getCatalogPage({ data: { deals: true } }), staleTime: 60000 });
+  const deals = (dealsData?.items ?? []).slice(0, 8);
+  const catalog = useInfiniteQuery({
+    queryKey: ['home-catalog'],
+    queryFn: ({ pageParam }) => getCatalogPage({ data: { page: pageParam } }),
+    initialPageParam: 0,
+    getNextPageParam: (last, pages) => (pages.length * PAGE_SIZE < last.total ? pages.length : undefined),
+    staleTime: 60000,
+  });
+  const products = catalog.data?.pages.flatMap(page => page.items) ?? [];
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = sentinel.current;
+    if (!element || !catalog.hasNextPage) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && !catalog.isFetchingNextPage) catalog.fetchNextPage();
+    }, { rootMargin: '400px' });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [catalog.hasNextPage, catalog.isFetchingNextPage, catalog.fetchNextPage]);
   const showIntro = authReady && !session;
   return <StoreShell><main className="mx-auto max-w-7xl px-3 sm:px-4">
     {showIntro && <>
@@ -40,12 +62,19 @@ function Home() {
       </section>
     </>}
     <section className="mt-8"><h2 className="mb-4 text-xl font-extrabold sm:text-2xl">تسوق حسب القسم</h2><CategoryStrip /></section>
-    {deals.length > 0 && <section className="mt-10 rounded-3xl bg-sale/25 p-4 sm:p-6"><Header title="🔥 عروض وخصومات" /><Grid items={deals.slice(0, 8)} /></section>}
-    <section className="mt-10"><Header title={session ? 'كل المنتجات' : 'منتجاتنا'} />{products.length ? <Grid items={session ? products : products.slice(0, 12)} /> : <div className="rounded-2xl border border-dashed border-border py-14 text-center text-muted-foreground">قريباً: منتجات جديدة تناسب كل احتياجاتك</div>}</section>
+    {deals.length > 0 && <section className="mt-10 rounded-3xl bg-sale/25 p-4 sm:p-6"><Header title="🔥 عروض وخصومات" /><Grid items={deals} /></section>}
+    <section className="mt-10"><Header title={session ? 'كل المنتجات' : 'منتجاتنا'} />
+      {catalog.isPending ? <div className="rounded-2xl border border-dashed border-border py-14 text-center text-muted-foreground">جاري تحميل المنتجات...</div>
+        : products.length ? <>
+          <Grid items={products} />
+          {catalog.hasNextPage && <div ref={sentinel} className="mt-6 flex justify-center"><Button variant="outline" disabled={catalog.isFetchingNextPage} onClick={() => catalog.fetchNextPage()}>{catalog.isFetchingNextPage ? 'جاري تحميل المزيد...' : 'عرض المزيد'}</Button></div>}
+        </>
+        : <div className="rounded-2xl border border-dashed border-border py-14 text-center text-muted-foreground">قريباً: منتجات جديدة تناسب كل احتياجاتك</div>}
+    </section>
   </main></StoreShell>;
 }
 function Header({ title }: { title: string }) { return <div className="flex items-end justify-between gap-4"><PageTitle title={title} /><Link to="/shop" search={shopAll} className="mb-6 flex shrink-0 items-center gap-1 text-sm font-bold text-primary">عرض الكل <ArrowLeft className="size-4" /></Link></div>; }
-function Grid({ items }: { items: ReturnType<typeof useStore>['products'] }) { return <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{items.map(p => <ProductCard key={p.id} product={p} />)}</div>; }
+function Grid({ items }: { items: Product[] }) { return <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{items.map(p => <ProductCard key={p.id} product={p} />)}</div>; }
 function Promo({ img, title, sub, cat }: { img: string; title: string; sub: string; cat: string }) {
   return <Link to="/shop" search={{ ...shopAll, category: cat }} className="store-reveal group relative flex min-h-[140px] overflow-hidden rounded-3xl bg-secondary sm:min-h-[184px]"><img src={img} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-primary/85 via-primary/20 to-transparent" /><div className="relative mt-auto p-4 text-primary-foreground"><b className="block text-base sm:text-lg">{title}</b><span className="text-xs opacity-85">{sub}</span></div></Link>;
 }
